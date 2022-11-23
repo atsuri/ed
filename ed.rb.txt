@@ -1,0 +1,55 @@
+class Ed
+    
+    def initialize
+        @n = 0
+        @m = 0
+        @current = 0 #カレント行
+    
+        _read
+    end
+
+    def _read
+        @str = STDIN.gets #読み込み
+        _eval
+        
+    end
+
+    def _eval # 正規表現マッチしたかどうか
+        addr = "(?:\d+|[.$,;]|\/.*\/)"
+        cmnd = "(?:wq|[acdgijnpqrw=]|\z)"
+        prmt = "(?:.*)"
+        is_match = /\A(#{addr}(,#{addr})?)?(#{cmnd})(#{prmt})?\z/
+        if /(?:#{is_match})/ =~ @str then
+            print "ok" #デバッグ
+        else
+            _print
+        end
+    end
+    
+    def _print #エラー
+        print "?"
+    end
+
+    def _p(n) #表示
+        # print でn-m行
+    end
+
+    def _q #終了
+        # プログラム終了
+        # パラメータ、アドレス指定はエラー
+    end
+
+    def _d #削除
+
+    end
+
+    def _a #追加
+        @buffer = ARGF.readlines
+        # 入力「.」がうたれるまで続く
+    end
+
+    def _E #改行
+
+    end
+end
+Ed.new
