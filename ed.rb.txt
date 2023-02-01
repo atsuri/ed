@@ -469,7 +469,7 @@ orange
 test2.txtは空
 
 ####################################################################
-kitoatsuri@kitouatrinoAir2 ed % ruby ed.rb -p '>' test.txt
+% ruby ed.rb -p '>' test.txt
 19
 >i
 neko
@@ -505,10 +505,10 @@ fish
 test2.txt
 >wq
 29
-kitoatsuri@kitouatrinoAir2 ed % 
+
 
 ####################################################################
-kitoatsuri@kitouatrinoAir2 ed % ruby ed.rb -p '*' test.txt
+% ruby ed.rb -p '*' test.txt
 19
 *a
 ttt
@@ -533,4 +533,4 @@ lucky
 *n
 1　　applebananaorange
 *q
-kitoatsuri@kitouatrinoAir2 ed % 
+
