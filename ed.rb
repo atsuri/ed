@@ -1,114 +1,458 @@
+require 'optparse'
 class Ed 
     def initialize
+        @file = '' # ファイル
         @current = 0 # カレント行
         @buffer = [] # バッファ
-        @file = nil # ファイル
-        loop {
-            _print(_eval(_read))
-        }
+        @file = '' # ファイル
+        @prompt = '' # プロンプト
+        @str = '' #入力されたもの
+
+        # オプション
+        OptionParser.new do |op|
+            op.on ('-p *') {|p| @prompt = p }
+            op.parse!(ARGV)
+        end
+        begin
+            unless ARGV.empty?
+                @file = ARGF.filename
+                @buffer = ARGF.readlines
+                @current = @buffer.length
+                puts File.size(@file)
+            end
+        rescue
+            puts "#{ARGF.filename}: ファイルがありません。"
+        end
+
+        loop do
+            _read()
+            _eval()
+        end
     end
 
-    def _read
-        @str = STDIN.gets #読み込み
+    def _read()
+        print "#{@prompt}"
+        @str = STDIN.gets.chomp #読み込み
     end
 
-    def _eval # 正規表現マッチしたかどうか
-        @addr = "(?:\d+|[.$,;]|\/.*\/)"
-        @cmnd = "(?:wq|[acdfijnpqrw=]|\z)"
-        @prmt = "(?:.*)"
+    def _eval() # 正規表現マッチしたかどうか
+        @addr = '(?:\d+|[.$,;]|\/.*\/)'
+        @cmnd = '(?:wq|[acdfijnpqrw=]|\z)'
+        @prmt = '(?:.*)'
         @is_match = /\A(#{@addr}(?:,#{@addr})?)?(#{@cmnd})(#{@prmt})?\z/
-        if /(?:#{@is_match})/ =~ @str then
-            print "ok" #デバッグ
-            self.send("command_#{@cmnd}")
+        if @is_match =~ @str then
+            #デバッグ
+            # puts "$1：#{$1}"
+            @address = $1
+            # puts "$2：#{$2}"
+            # puts "$3：#{$3}"
+            @filename = $3.chomp
+            self.send("command_#{$2}")
         else
             _print
         end
     end
 
     def _print #エラー
-        print "?"
+        puts "?"
     end
 
+    # 完了
     def command_a
-        if $1
-            @buffer.insert($1+1, 〜)
-        else
-            @buffer.insert(@current+1, 〜) 
-        end 
-        @current = @current+1
+        if @address then
+            begin
+                if @address == '$'
+                    @current = @buffer.length
+                else
+                    @current = @address.to_i
+                end
+            rescue
+                _print
+                return
+            end
+        end
+
+        flag = false
+        flag = true if @buffer.length == 0
+        times = 0
+        loop do
+            insert = STDIN.gets.chomp #読み込み
+            break if insert == "."
+            @buffer.insert(@current.to_i + times, insert)
+            times = times + 1
+        end
+        @current = @current.to_i + times
     end
 
+    # 完了
     def command_c
+        if @buffer.length == 0 then
+            _print
+            return
+        end
         command_d
         command_a
     end
 
+    # 完了
     def command_d
-        @buffer.slice!($1, $2)
-        @current = $1
-    end
-
-    def command_f
-        @file = $4
-    end
-
-    def command_i
-        if $1
-            @buffer.insert($1, 〜)
-        else
-            @buffer.insert(@current, 〜)
+        len = @buffer.length
+        if len == 0 then
+            _print
+            return
         end
-        @current = @current
+
+        flag = false
+        if !@address || @address == '.' then
+            flag = true if len == @current
+            @buffer.delete_at(@current-1)
+            if flag then
+                @current = @current - 1
+            end
+        elsif @address then
+            range = @address.split(',')
+            case range.length
+            when 1
+                if range[0] == '$' then
+                    @buffer.delete_at(len-1)
+                    @current = @current - 1
+                else
+                    if len < range[0].to_i then
+                        _print
+                        return
+                    end
+                    flag = true if len == range[0].to_i 
+                    @buffer.delete_at(range[0].to_i-1)
+                    if flag then
+                        @current = range[0].to_i - 1
+                    else
+                        @current = range[0].to_i
+                    end
+                end
+            when 2
+                range[1] = len if range[1] == '$'
+                unless range[0].to_i < range[1].to_i
+                    _print
+                    return
+                end
+
+                if range[1].to_i <= len && range[0].to_i>0 then
+                    flag = true if len == range[1].to_i
+                    for i in range[0].to_i..range[1].to_i do
+                        @buffer.delete_at(range[0].to_i-1)
+                    end
+                    if flag then
+                        @current = range[0].to_i - 1
+                    else
+                        @current = range[0].to_i
+                    end
+                else
+                    _print
+                    return
+                end
+            end
+        end
     end
 
+    # 完了
+    def command_f
+        @file = @filename if @filename
+        puts @file
+    end
+
+    # 完了
+    def command_i
+        if @address then
+            begin
+                if @address == '$'
+                    @current = @buffer.length
+                else
+                    @current = @address.to_i
+                end
+            rescue
+                _print
+                return
+            end
+        end
+
+        times = 0
+        flag = false
+        flag = true if @buffer.length == 0
+        if flag then
+            loop do
+                insert = STDIN.gets.chomp #読み込み
+                break if insert == "."
+                @buffer.insert(@current.to_i + times, insert)
+                times = times + 1
+            end
+            @current = @current.to_i + times
+        else
+            loop do
+                insert = STDIN.gets.chomp #読み込み
+                break if insert == "."
+                @buffer.insert(@current.to_i+ times - 1, insert)
+                times = times + 1
+            end
+            @current = @current.to_i + times - 1
+        end
+        # p @buffer
+    end
+
+    # 完了
     def command_j
         # joinする
+        len = @buffer.length
+        if @buffer.length == 0 then
+            _print
+            return
+        end
+
+        if @address then
+            range = @address.split(',')
+            case range.length
+            when 2
+                range[1] = len if range[1] == '$'
+                unless len>=range[1].to_i && range[0].to_i>0 
+                    _print
+                    return
+                end
+                join = []
+                for i in range[0].to_i..range[1].to_i do
+                    join << @buffer[range[0].to_i-1].chomp
+                    @buffer.delete_at(range[0].to_i-1)
+                end
+                @buffer.insert(range[0].to_i-1, join.join)
+                if range[0].to_i == len then
+                    @current = range[0].to_i - 1
+                else
+                    @current = range[0].to_i
+                end
+                
+            when 1
+                unless range[0].to_i > 0 && range[0].to_i <= len
+                    _print
+                    return
+                end
+            end
+        else
+            _print
+            return
+        end
     end
 
+    # 完了
     def command_n
         # 指定した範囲と行番号表示
-        if $1 and $2 then
-            ($1..$2).each do |i|
-                print "#{i}: #{@buffer[i]}"
+        len = @buffer.length
+        if @buffer.length == 0 then
+            _print
+            return
+        end
+
+        if @address then
+            range = @address.split(',')
+            case range.length
+            when 0
+                for i in 0..len-1 do
+                    puts "#{i+1}　　#{@buffer[i]}"
+                end
+                @current = len
+            when 1
+                if range[0] == '.' then
+                    puts "#{@current}　　#{@buffer[@current-1]}"
+                else
+                    #行指定
+                    if (range[0].to_i).is_a?(Integer) then
+                        puts "#{range[0].to_i}　　#{@buffer[range[0].to_i-1]}"
+                        @current = range[0].to_i
+                    else
+                        _print
+                        return
+                    end
+                end
+            when 2
+                range[1] = len if range[1] == '$'
+
+                begin # 数値でなかった時用
+                    unless range[0].to_i < range[1].to_i
+                        _print
+                        return
+                    end
+                rescue
+                    _print
+                    return
+                end
+
+                if len>=range[1].to_i && range[0].to_i>0 then
+                    for i in range[0].to_i..range[1].to_i do
+                        puts "#{i}　　#{@buffer[i-1]}"
+                    end
+                    @current = range[1].to_i
+                else
+                    _print
+                    return
+                end
+            else
+                _print
+                return
             end
         else
-            _print
+            puts "#{@current}　　#{@buffer[@current-1]}"
         end
     end
 
-    def commpand_p
+    # 完了
+    def command_p
         # 指定した範囲表示
-        if $1 and $2 then
-            ($1..$2).each do |i|
-                print @buffer[i]
-            end
-        else
+        len = @buffer.length
+        if len == 0 then
             _print
+            return
+        end
+
+        if !@address || @address == '.' then
+            puts @buffer[@current-1]
+        else
+            range = @address.split(',')
+            case range.length
+            when 1
+                range[0] = len if range[0] == '$'
+                unless range[0].to_i > 0 && range[0].to_i <= len
+                    _print
+                    return
+                end
+
+                puts @buffer[range[0].to_i - 1]
+                @current = range[0].to_i
+            when 2
+                range[1] = len if range[1] == '$'
+                unless range[0].to_i < range[1].to_i
+                    _print
+                    return
+                end
+
+                if range[1].to_i<=len && range[0].to_i>0 then
+                    for i in range[0].to_i..range[1].to_i do
+                        puts @buffer[i-1]
+                    end
+                    @current = range[1].to_i
+                else
+                    _print
+                    return
+                end
+            else
+                _print
+                return
+            end
         end
     end
 
+    # 完了
     def command_q
         exit
     end
 
+    # 完了
     def command_w
-        @file = $4
-        IO.write(@file, @buffer)
-        # ファイルに書き込みたい
+        if @file then
+            # ファイルに書き込みたい
+            File.open(@file, 'w') do |f|
+                @buffer.each do |line|
+                    f.puts(line)
+                end
+            end
+            puts File.size(@file)
+        else
+            _print
+            return
+        end
     end
 
+    #完了
     def command_wq
         command_w
         command_q
     end
 
+    # 完了
     def command_=
         # print 行番号
         # 指定された行番号表示したい
+        len = @buffer.length
+        if !@address then
+            puts len
+        else
+            if @buffer.length == 0 && @address.to_i!=0 
+                _print
+                return
+            else
+                begin
+                    if @address == '.' then
+                        puts @current
+                    elsif len > @address.to_i && @address.to_i >= 0 then
+                        @address = len if @address == '$'
+                        puts @address
+                    else
+                        _print
+                        return
+                    end
+                rescue
+                    _print
+                    return
+                end
+            end
+        end
     end
 
+    # 完了
     def command_
         # イプシロン（改行）
+        if @address then
+            len = @address.length
+            case len
+            when 1
+                if @address == '$' then
+                    @go = @buffer.length
+                else
+                    begin
+                        @go = @address.to_i
+                    rescue
+                        _print
+                        return
+                    end
+                end
+            else
+                @address = @address.split(',')
+                length = @address.length
+                begin
+                    @address = @address[length-1].to_i
+                rescue
+                    _print
+                    return
+                end
+                if @address == '$' then
+                    @go = @buffer.length
+                else
+                    @go = @address
+                end
+            end
+            if @buffer.length >= @go then
+                puts @buffer[@go-1]
+                @current = @go
+            else
+                _print
+                return
+            end
+        else
+            if @buffer.length > @current then
+                puts @buffer[@current]
+                @current = @current+1
+            else
+                _print
+                return
+            end
+        end
+
     end
 end
 
